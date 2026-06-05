@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Encoder – intelligent text prediction powered by a spaCy NER model." />
+  <title>Redaction System – Text Prediction</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    /* ── Reset & Tokens ───────────────────────────────────────────── */
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --bg-base: #0b0e1a;
+      --bg-card: rgba(255, 255, 255, 0.04);
+      --border: rgba(255, 255, 255, 0.08);
+      --accent-from: #6c63ff;
+      --accent-to: #48cae4;
+      --text-primary: #f0f2ff;
+      --text-muted: #8892b0;
+      --success: #56cfb2;
+      --error: #ff6b8a;
+      --radius: 16px;
+      --transition: 0.25s cubic-bezier(.4, 0, .2, 1);
+    }
+
+    html,
+    body {
+      height: 100%;
+      font-family: 'Inter', sans-serif;
+      background: var(--bg-base);
+      color: var(--text-primary);
+      line-height: 1.6;
+    }
+
+    /* ── Background Blobs ─────────────────────────────────────────── */
+    body::before,
+    body::after {
+      content: '';
+      position: fixed;
+      border-radius: 50%;
+      filter: blur(120px);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    body::before {
+      width: 600px;
+      height: 600px;
+      background: radial-gradient(circle, rgba(108, 99, 255, .25), transparent 70%);
+      top: -150px;
+      left: -150px;
+    }
+
+    body::after {
+      width: 500px;
+      height: 500px;
+      background: radial-gradient(circle, rgba(72, 202, 228, .2), transparent 70%);
+      bottom: -120px;
+      right: -120px;
+    }
+
+    /* ── Layout ───────────────────────────────────────────────────── */
+    .container {
+      position: relative;
+      z-index: 1;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem 1rem;
+    }
+
+    /* ── Header ───────────────────────────────────────────────────── */
+    header {
+      text-align: center;
+      margin-bottom: 2.5rem;
+    }
+
+    .logo-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 6px 18px;
+      font-size: .8rem;
+      font-weight: 500;
+      color: var(--text-muted);
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      margin-bottom: 1.2rem;
+      backdrop-filter: blur(12px);
+    }
+
+    .logo-badge span {
+      font-size: 1rem;
+    }
+
+    h1 {
+      font-size: clamp(2rem, 5vw, 3.2rem);
+      font-weight: 700;
+      background: linear-gradient(135deg, var(--accent-from), var(--accent-to));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: .6rem;
+    }
+
+    .subtitle {
+      color: var(--text-muted);
+      font-size: 1rem;
+      font-weight: 400;
+    }
+
+    /* ── Card ─────────────────────────────────────────────────────── */
+    .card {
+      width: 100%;
+      max-width: 760px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 2rem;
+      backdrop-filter: blur(20px);
+      box-shadow: 0 24px 60px rgba(0, 0, 0, .4), 0 0 0 1px rgba(255, 255, 255, .03);
+    }
+
+    /* ── Form ─────────────────────────────────────────────────────── */
+    .form-group {
+      margin-bottom: 1.25rem;
+    }
+
+    label {
+      display: block;
+      font-size: .85rem;
+      font-weight: 500;
+      color: var(--text-muted);
+      margin-bottom: .5rem;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 140px;
+      resize: vertical;
+      background: rgba(255, 255, 255, .03);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1rem 1.2rem;
+      font-family: 'Inter', sans-serif;
+      font-size: 1rem;
+      color: var(--text-primary);
+      outline: none;
+      transition: border-color var(--transition), box-shadow var(--transition);
+    }
+
+    textarea::placeholder {
+      color: rgba(136, 146, 176, .45);
+    }
+
+    textarea:focus {
+      border-color: var(--accent-from);
+      box-shadow: 0 0 0 3px rgba(108, 99, 255, .18);
+    }
+
+    /* ── Button ───────────────────────────────────────────────────── */
+    .btn {
+      width: 100%;
+      padding: .9rem 1.5rem;
+      border: none;
+      border-radius: 10px;
+      font-family: 'Inter', sans-serif;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      background: linear-gradient(135deg, var(--accent-from), var(--accent-to));
+      color: #fff;
+      position: relative;
+      overflow: hidden;
+      transition: transform var(--transition), box-shadow var(--transition), opacity var(--transition);
+    }
+
+    .btn::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: rgba(255, 255, 255, 0);
+      transition: background var(--transition);
+    }
+
+    .btn:hover:not(:disabled)::after {
+      background: rgba(255, 255, 255, .08);
+    }
+
+    .btn:active:not(:disabled) {
+      transform: scale(.98);
+    }
+
+    .btn:hover:not(:disabled) {
+      box-shadow: 0 8px 30px rgba(108, 99, 255, .45);
+    }
+
+    .btn:disabled {
+      opacity: .6;
+      cursor: not-allowed;
+    }
+
+    /* spinner inside button */
+    .btn .spinner {
+      display: none;
+      width: 18px;
+      height: 18px;
+      border: 2px solid rgba(255, 255, 255, .4);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+      margin: 0 auto;
+    }
+
+    .btn.loading .btn-label {
+      display: none;
+    }
+
+    .btn.loading .spinner {
+      display: block;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    /* ── Divider ──────────────────────────────────────────────────── */
+    .divider {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 1.5rem 0;
+      color: var(--text-muted);
+      font-size: .78rem;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+    }
+
+    .divider::before,
+    .divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    /* ── Output ───────────────────────────────────────────────────── */
+    #output-section {
+      opacity: 0;
+      transform: translateY(12px);
+      transition: opacity .4s ease, transform .4s ease;
+      pointer-events: none;
+    }
+
+    #output-section.visible {
+      opacity: 1;
+      transform: translateY(0);
+      pointer-events: auto;
+    }
+
+    .output-box {
+      background: rgba(255, 255, 255, .03);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.2rem 1.4rem;
+      font-family: 'Courier New', Courier, monospace;
+      font-size: .97rem;
+      line-height: 1.75;
+      color: var(--text-primary);
+      white-space: pre-wrap;
+      word-break: break-word;
+      min-height: 80px;
+      position: relative;
+    }
+
+    .output-box.error {
+      border-color: var(--error);
+      color: var(--error);
+    }
+
+    /* copy button */
+    #copy-btn {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: rgba(255, 255, 255, .07);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text-muted);
+      font-size: .78rem;
+      padding: 4px 10px;
+      cursor: pointer;
+      transition: background var(--transition), color var(--transition);
+    }
+
+    #copy-btn:hover {
+      background: rgba(255, 255, 255, .14);
+      color: var(--text-primary);
+    }
+
+    #copy-btn.copied {
+      color: var(--success);
+      border-color: var(--success);
+    }
+
+    /* ── Footer ───────────────────────────────────────────────────── */
+    footer {
+      margin-top: 2.5rem;
+      color: var(--text-muted);
+      font-size: .78rem;
+      text-align: center;
+      opacity: .6;
+    }
+
+    /* ── Responsive ───────────────────────────────────────────────── */
+    @media (max-width: 600px) {
+      .card {
+        padding: 1.4rem 1rem;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+
+    <header>
+      <div class="logo-badge"><span>⚡</span> Spacy NER</div>
+      <h1>Redaction System</h1>
+      <p class="subtitle">Enter any text and get model predictions instantly</p>
+    </header>
+
+    <div class="card">
+      <!-- Input Form -->
+      <form id="predict-form" autocomplete="off">
+        <div class="form-group">
+          <label for="user-text">Input Text</label>
+          <textarea id="user-text" name="text"
+            placeholder="e.g. I need a summary of the book Existential Therapy for Van Kilback. Can you help?"
+            required></textarea>
+        </div>
+
+        <button type="submit" class="btn" id="predict-btn">
+          <span class="btn-label">Run Prediction</span>
+          <div class="spinner"></div>
+        </button>
+      </form>
+
+      <!-- Output Section -->
+      <div id="output-section">
+        <div class="divider">Result</div>
+        <div class="output-box" id="output-box">
+          <button id="copy-btn" title="Copy to clipboard">Copy</button>
+          <span id="output-text"></span>
+        </div>
+      </div>
+    </div>
+
+    <footer>Powered by spaCy &nbsp;·&nbsp; Encoder v1.0</footer>
+
+  </div>
+
+  <script>
+    const form = document.getElementById('predict-form');
+    const btn = document.getElementById('predict-btn');
+    const outputSec = document.getElementById('output-section');
+    const outputBox = document.getElementById('output-box');
+    const outputText = document.getElementById('output-text');
+    const copyBtn = document.getElementById('copy-btn');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const text = document.getElementById('user-text').value.trim();
+      if (!text) return;
+
+      // Loading state
+      btn.disabled = true;
+      btn.classList.add('loading');
+      outputSec.classList.remove('visible');
+      outputBox.classList.remove('error');
+
+      try {
+        const res = await fetch('/predict', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text })
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) throw new Error(data.error || 'Server error');
+
+        outputText.textContent = JSON.stringify(data.result, null, 2);
+        outputBox.classList.remove('error');
+      } catch (err) {
+        outputText.textContent = '⚠ ' + err.message;
+        outputBox.classList.add('error');
+      } finally {
+        btn.disabled = false;
+        btn.classList.remove('loading');
+        outputSec.classList.add('visible');
+      }
+    });
+
+    // Copy to clipboard
+    copyBtn.addEventListener('click', async () => {
+      const txt = outputText.textContent;
+      if (!txt) return;
+      await navigator.clipboard.writeText(txt);
+      copyBtn.textContent = 'Copied!';
+      copyBtn.classList.add('copied');
+      setTimeout(() => {
+        copyBtn.textContent = 'Copy';
+        copyBtn.classList.remove('copied');
+      }, 1800);
+    });
+  </script>
+</body>
+
+</html>

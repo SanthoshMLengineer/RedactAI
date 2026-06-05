@@ -1,0 +1,13 @@
+numpy
+pandas
+spacy
+click
+flask
+# python -m spacy download en_core_web_sm
+en-core-web-sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl
+
+#cupy-cuda12x
+
+tqdm
+
+# python -m spacy train config.cfg --output ./models --paths.train data/train_data.spacy --paths.dev data/train_data.spacy
